@@ -34,8 +34,10 @@ which simplifies the query needed to fetch a question with all its answers.
 When designing mongodb relationships, it is necessary to ask how big is the data we will be working with. On this case,
 I considered improbable that the amount of answers for a given question will ever reach a number that could impact
 the performance. Therefore, instead of having a separate collection just for answers, I decided to embed.
-* Code review
-* Other guidelines
+
+### API interface ###
+
+* [Postman Documentation](https://documenter.getpostman.com/view/6076972/TVK77LTJ)
 
 ### What could be improved? ###
 * Add authentication layer
