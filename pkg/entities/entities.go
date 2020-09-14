@@ -1,12 +1,14 @@
 package entities
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
 //Question _
 type Question struct {
-	ID          int
-	Username    string
-	Title       string
-	Description string
-	Answers     []*Answer
+	ID          primitive.ObjectID `bson:"_id" json:"id"`
+	Username    string             `bson:"username" json:"username"`
+	Title       string             `bson:"title" json:"title"`
+	Description string             `bson:"description" json:"description"`
+	Answers     []*Answer          `bson:"answers" json:"answers"`
 }
 
 //Questions _

@@ -1,29 +1,33 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"bitbucket.org/aveaguilar/questions_and_answers/pkg/answers"
 	"bitbucket.org/aveaguilar/questions_and_answers/pkg/questions"
+	"bitbucket.org/aveaguilar/questions_and_answers/pkg/transport"
 	"github.com/caarlos0/env"
 	"github.com/go-kit/kit/endpoint"
 	kitlog "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	kithttp "github.com/go-kit/kit/transport/http"
-	_ "github.com/go-sql-driver/mysql"
+	kitHttp "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	mongoptions "go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 //DbConfig environment database config variables
 type dbConfig struct {
-	Driver   string
 	Host     string
-	Port     int
+	Port     string
 	User     string
 	Password string
 	Database string
@@ -37,64 +41,91 @@ func main() {
 		logger = kitlog.With(logger, "caller", kitlog.DefaultCaller)
 	}
 
-	cfg := readConfiguration()
+	cfg := readConfiguration(logger)
 	if err := env.Parse(&cfg); err != nil {
 		fmt.Printf("%+v\n", err)
 	}
 
-	db, err := NewDb(cfg)
+	//Database creation
+	clientOpts := mongoptions.Client().
+		SetConnectTimeout(time.Duration(10) * time.Second).
+		SetHosts([]string{fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)}).
+		SetAuth(mongoptions.Credential{
+			AuthMechanism: "SCRAM-SHA-256",
+			Username:      cfg.User,
+			Password:      cfg.Password,
+		})
+	mongoClient, err := mongo.NewClient(clientOpts)
 	if err != nil {
-		level.Error(logger).Log("error", err)
+		log.Fatal(err)
+	}
+
+	err = mongoClient.Connect(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer mongoClient.Disconnect(context.Background())
+
+	err = mongoClient.Ping(context.Background(), readpref.Primary())
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "mongo database connection was not established")
+		log.Fatal(err)
 	}
 
 	var middlewares []endpoint.Middleware
-	var options []kithttp.ServerOption
+	var options []kitHttp.ServerOption
 	r := mux.NewRouter()
 
-	repo := questions.NewRepository(db, logger)
+	repo := questions.NewRepository(mongoClient, cfg.Database, logger)
 	svc := questions.NewService(repo, logger)
 	eps := questions.MakeEndpoints(svc, logger, middlewares)
 	addQuestionEndpoints(r, eps, options)
 
-	answerRepo := answers.NewRepository(db, logger)
-	answerSvc := answers.NewService(answerRepo, logger)
-	answerEps := answers.MakeEndpoints(answerSvc, logger, middlewares)
+	//answerRepo := answers.NewRepository(mongoClient, cfg.Database, logger)
+	//answerSvc := answers.NewService(answerRepo, logger)
+	//answerEps := answers.MakeEndpoints(answerSvc, logger, middlewares)
 
-	addAnswerEndpoints(r, answerEps, options)
+	//addAnswerEndpoints(r, answerEps, options)
 	level.Info(logger).Log("status", "listening", "port", "8080")
 	svr := http.Server{
 		Addr:    "127.0.0.1:8080",
 		Handler: r,
 	}
-	level.Error(logger).Log(svr.ListenAndServe())
+	_ = level.Error(logger).Log(svr.ListenAndServe())
 }
 
-func addQuestionEndpoints(rtr *mux.Router, eps questions.Endpoints, options []kithttp.ServerOption) {
-	rtr.Methods(http.MethodGet).Path("/questions/all").Handler(questions.GetAllQuestionsHandler(eps.GetAll, options))
+func addQuestionEndpoints(rtr *mux.Router, eps questions.Endpoints, options []kitHttp.ServerOption) {
+	//All Questions
+	rtr.Methods(http.MethodGet).Path("/questions/all").Handler(transport.GetAllQuestionsHandler(eps.GetAll, options))
 
-	{
-		path := fmt.Sprintf("/questions/{%s}", params.DomainID)
-		rtr.Methods(http.MethodGet).Path(path).Handler(questions.GetAllQuestionsHandler(eps.GetAll, options))
-	}
-	rtr.Methods(http.MethodPost).Path("/questions/create").Handler(questions.CreateQuestionHandler(eps.CreateQuestion, options))
+	//{
+	//	//Question by ID
+	//	path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
+	//	rtr.Methods(http.MethodGet).Path(path).Handler(transport.GetQuestionHandler(eps.GetQuestion, options))
+	//}
+	//
+	////Create Question
+	//rtr.Methods(http.MethodPost).Path("/questions/create").Handler(transport.CreateQuestionHandler(eps.CreateQuestion, options))
+	//
+	//{
+	//	//Update question
+	//	path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
+	//	rtr.Methods(http.MethodPatch).Path(path).Handler(transport.CreateQuestionHandler(eps.UpdateQuestion, options))
+	//}
+	//
+	//{
+	//	//Delete question
+	//	path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
+	//	rtr.Methods(http.MethodDelete).Path(path).Handler(transport.CreateQuestionHandler(eps.DeleteQuestion, options))
+	//}
 }
 
-func addAnswerEndpoints(rtr *mux.Router, eps answers.Endpoints, options []kithttp.ServerOption) {
-	rtr.Methods(http.MethodGet).Path("/palindrome").Handler(answers.GetIsPalHandler(eps.GetIsPalindrome, options))
-	rtr.Methods(http.MethodGet).Path("/reverse").Handler(answers.GetReverseHandler(eps.GetReverse, options))
+func addAnswerEndpoints(rtr *mux.Router, eps answers.Endpoints, options []kitHttp.ServerOption) {
+	//rtr.Methods(http.MethodGet).Path("/palindrome").Handler(transport.GetIsPalHandler(eps.GetIsPalindrome, options))
+	//rtr.Methods(http.MethodGet).Path("/reverse").Handler(transport.GetReverseHandler(eps.GetReverse, options))
 }
 
-//NewDb _
-func NewDb(cfg dbConfig) (*sql.DB, error) {
-	database, err := sql.Open(cfg.Driver, fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database))
-	if err != nil {
-		return nil, err
-	}
-
-	return database, nil
-}
-
-func readConfiguration() dbConfig {
+func readConfiguration(logger kitlog.Logger) dbConfig {
 	// load .env file
 	err := godotenv.Load(".env")
 
@@ -102,7 +133,6 @@ func readConfiguration() dbConfig {
 		log.Fatalf("Error loading .env file")
 	}
 	return dbConfig{
-		Driver:   os.Getenv("DB_DRIVER"),
 		Host:     os.Getenv("DB_HOST"),
 		Port:     os.Getenv("DB_PORT"),
 		User:     os.Getenv("DB_USERNAME"),
