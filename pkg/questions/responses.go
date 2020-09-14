@@ -6,9 +6,17 @@ import (
 
 //GetAllQuestionsResponse _
 type GetAllQuestionsResponse struct {
-	Questions entities.Questions `json:"questions"`
+	Questions *entities.Questions `json:"questions"`
 }
 
-type ReverseResponse struct {
-	Word string `json:"reversed_word"`
+type GetQuestionResponse struct {
+	Question *entities.Question `json:"question"`
+}
+
+type CreateResourceResponse struct {
+	CreatedID string `json:"created_id"`
+}
+
+type HandleResourceResponse struct {
+	Message string `json:"message"`
 }

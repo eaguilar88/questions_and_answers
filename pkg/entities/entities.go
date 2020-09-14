@@ -5,7 +5,6 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 //Question _
 type Question struct {
 	ID          primitive.ObjectID `bson:"_id" json:"id"`
-	Username    string             `bson:"username" json:"username"`
 	Title       string             `bson:"title" json:"title"`
 	Description string             `bson:"description" json:"description"`
 	Answers     []*Answer          `bson:"answers" json:"answers"`
@@ -16,8 +15,6 @@ type Questions []Question
 
 //Answer _
 type Answer struct {
-	ID         int
-	QuestionID int
-	Username   string
-	Answer     string
+	ID       primitive.ObjectID `bson:"_id" json:"id"`
+	Answer   string             `bson:"answer" json:"answer"`
 }

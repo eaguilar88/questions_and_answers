@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"bitbucket.org/aveaguilar/questions_and_answers/pkg/answers"
 	"bitbucket.org/aveaguilar/questions_and_answers/pkg/questions"
 	"bitbucket.org/aveaguilar/questions_and_answers/pkg/transport"
 	"github.com/caarlos0/env"
@@ -81,11 +80,6 @@ func main() {
 	eps := questions.MakeEndpoints(svc, logger, middlewares)
 	addQuestionEndpoints(r, eps, options)
 
-	//answerRepo := answers.NewRepository(mongoClient, cfg.Database, logger)
-	//answerSvc := answers.NewService(answerRepo, logger)
-	//answerEps := answers.MakeEndpoints(answerSvc, logger, middlewares)
-
-	//addAnswerEndpoints(r, answerEps, options)
 	level.Info(logger).Log("status", "listening", "port", "8080")
 	svr := http.Server{
 		Addr:    "127.0.0.1:8080",
@@ -96,33 +90,39 @@ func main() {
 
 func addQuestionEndpoints(rtr *mux.Router, eps questions.Endpoints, options []kitHttp.ServerOption) {
 	//All Questions
-	rtr.Methods(http.MethodGet).Path("/questions/all").Handler(transport.GetAllQuestionsHandler(eps.GetAll, options))
+	rtr.Methods(http.MethodGet).Path("/questions").Handler(transport.GetAllQuestionsHandler(eps.GetAll, options))
 
-	//{
-	//	//Question by ID
-	//	path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
-	//	rtr.Methods(http.MethodGet).Path(path).Handler(transport.GetQuestionHandler(eps.GetQuestion, options))
-	//}
-	//
-	////Create Question
-	//rtr.Methods(http.MethodPost).Path("/questions/create").Handler(transport.CreateQuestionHandler(eps.CreateQuestion, options))
-	//
-	//{
-	//	//Update question
-	//	path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
-	//	rtr.Methods(http.MethodPatch).Path(path).Handler(transport.CreateQuestionHandler(eps.UpdateQuestion, options))
-	//}
-	//
-	//{
-	//	//Delete question
-	//	path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
-	//	rtr.Methods(http.MethodDelete).Path(path).Handler(transport.CreateQuestionHandler(eps.DeleteQuestion, options))
-	//}
-}
+	{
+		//Question by ID
+		path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
+		rtr.Methods(http.MethodGet).Path(path).Handler(transport.GetQuestionHandler(eps.GetQuestion, options))
+	}
 
-func addAnswerEndpoints(rtr *mux.Router, eps answers.Endpoints, options []kitHttp.ServerOption) {
-	//rtr.Methods(http.MethodGet).Path("/palindrome").Handler(transport.GetIsPalHandler(eps.GetIsPalindrome, options))
-	//rtr.Methods(http.MethodGet).Path("/reverse").Handler(transport.GetReverseHandler(eps.GetReverse, options))
+	//Create Question
+	rtr.Methods(http.MethodPost).Path("/questions").Handler(transport.CreateQuestionHandler(eps.CreateQuestion, options))
+
+	{
+		//Update question
+		path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
+		rtr.Methods(http.MethodPatch).Path(path).Handler(transport.UpdateQuestionHandler(eps.UpdateQuestion, options))
+	}
+
+	{
+		//Delete question
+		path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
+		rtr.Methods(http.MethodDelete).Path(path).Handler(transport.DeleteQuestionHandler(eps.DeleteQuestion, options))
+	}
+	//Answers related endpoints
+	{
+		//Add answer to a question
+		path := fmt.Sprintf("/questions/{%s}/answers", transport.QuestionID)
+		rtr.Methods(http.MethodPut).Path(path).Handler(transport.AddAnswerHandler(eps.CreateAnswer, options))
+	}
+	{
+		//Edit answer of a question
+		path := fmt.Sprintf("/questions/{%s}/answers/{%s}", transport.QuestionID, transport.AnswerID)
+		rtr.Methods(http.MethodPatch).Path(path).Handler(transport.UpdateAnswerHandler(eps.UpdateAnswer, options))
+	}
 }
 
 func readConfiguration(logger kitlog.Logger) dbConfig {
