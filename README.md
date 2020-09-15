@@ -46,7 +46,8 @@ This could also imply a re-organize the code. Having the full set of answers end
 package more useful to preserve order.
 * I would like to have an factory to connect to different databases. Relational or not. I could include a *driver* enviroment
 variable to let the app know which db engine should be using.
-* A less convoluted UI. 
+* Better error handling.
+* A user interface
 
 ### Who do I talk to? ###
 
