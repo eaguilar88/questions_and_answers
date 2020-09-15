@@ -38,6 +38,7 @@ the performance. Therefore, instead of having a separate collection just for ans
 ### API interface ###
 
 * [Postman Documentation](https://documenter.getpostman.com/view/6076972/TVK77LTJ)
+* [Internal Docs](docs/API.md)
 
 ### What could be improved? ###
 * Add authentication layer
