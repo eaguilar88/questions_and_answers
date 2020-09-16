@@ -77,7 +77,7 @@ func main() {
 		Addr:    fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
 		Handler: r,
 	}
-	_ = level.Error(logger).Log(svr.ListenAndServe())
+	_ = level.Info(logger).Log(svr.ListenAndServe())
 }
 
 func readConfiguration(logger kitlog.Logger) entities.Config {
@@ -85,7 +85,8 @@ func readConfiguration(logger kitlog.Logger) entities.Config {
 	err := godotenv.Load(".env")
 
 	if err != nil {
-		log.Fatalf("Error loading .env file")
+		level.Error(logger).Log("error", "Error loading .env file")
+		os.Exit(1)
 	}
 	dbConfig := entities.DbConfig{
 		Host:     os.Getenv("DB_HOST"),
