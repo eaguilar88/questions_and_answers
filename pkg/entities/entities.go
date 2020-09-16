@@ -15,6 +15,20 @@ type Questions []Question
 
 //Answer _
 type Answer struct {
-	ID       primitive.ObjectID `bson:"_id" json:"id"`
-	Answer   string             `bson:"answer" json:"answer"`
+	ID     primitive.ObjectID `bson:"_id" json:"id"`
+	Answer string             `bson:"answer" json:"answer"`
+}
+
+type Config struct {
+	Host string
+	Port string
+	DB   DbConfig
+}
+
+type DbConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	Database string
 }

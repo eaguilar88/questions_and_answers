@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"bitbucket.org/aveaguilar/questions_and_answers/pkg/entities"
 	"bitbucket.org/aveaguilar/questions_and_answers/pkg/questions"
 	"bitbucket.org/aveaguilar/questions_and_answers/pkg/transport"
 	"github.com/caarlos0/env"
@@ -22,15 +23,6 @@ import (
 	mongoptions "go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
-
-//DbConfig environment database config variables
-type dbConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	Database string
-}
 
 func main() {
 	var logger kitlog.Logger
@@ -48,11 +40,11 @@ func main() {
 	//Database creation
 	clientOpts := mongoptions.Client().
 		SetConnectTimeout(time.Duration(10) * time.Second).
-		SetHosts([]string{fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)}).
+		SetHosts([]string{fmt.Sprintf("%s:%s", cfg.DB.Host, cfg.DB.Port)}).
 		SetAuth(mongoptions.Credential{
 			AuthMechanism: "SCRAM-SHA-256",
-			Username:      cfg.User,
-			Password:      cfg.Password,
+			Username:      cfg.DB.User,
+			Password:      cfg.DB.Password,
 		})
 	mongoClient, err := mongo.NewClient(clientOpts)
 	if err != nil {
@@ -75,68 +67,37 @@ func main() {
 	var options []kitHttp.ServerOption
 	r := mux.NewRouter()
 
-	repo := questions.NewRepository(mongoClient, cfg.Database, logger)
+	repo := questions.NewRepository(mongoClient, cfg.DB.Database, logger)
 	svc := questions.NewService(repo, logger)
 	eps := questions.MakeEndpoints(svc, logger, middlewares)
-	addQuestionEndpoints(r, eps, options)
+	transport.AddQuestionEndpoints(r, eps, options)
 
-	level.Info(logger).Log("status", "listening", "port", "8080")
+	level.Info(logger).Log("status", "listening", "port", cfg.Port)
 	svr := http.Server{
-		Addr:    "127.0.0.1:8080",
+		Addr:    fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
 		Handler: r,
 	}
 	_ = level.Error(logger).Log(svr.ListenAndServe())
 }
 
-func addQuestionEndpoints(rtr *mux.Router, eps questions.Endpoints, options []kitHttp.ServerOption) {
-	//All Questions
-	rtr.Methods(http.MethodGet).Path("/questions").Handler(transport.GetAllQuestionsHandler(eps.GetAll, options))
-
-	{
-		//Question by ID
-		path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
-		rtr.Methods(http.MethodGet).Path(path).Handler(transport.GetQuestionHandler(eps.GetQuestion, options))
-	}
-
-	//Create Question
-	rtr.Methods(http.MethodPost).Path("/questions").Handler(transport.CreateQuestionHandler(eps.CreateQuestion, options))
-
-	{
-		//Update question
-		path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
-		rtr.Methods(http.MethodPatch).Path(path).Handler(transport.UpdateQuestionHandler(eps.UpdateQuestion, options))
-	}
-
-	{
-		//Delete question
-		path := fmt.Sprintf("/questions/{%s}", transport.QuestionID)
-		rtr.Methods(http.MethodDelete).Path(path).Handler(transport.DeleteQuestionHandler(eps.DeleteQuestion, options))
-	}
-	//Answers related endpoints
-	{
-		//Add answer to a question
-		path := fmt.Sprintf("/questions/{%s}/answers", transport.QuestionID)
-		rtr.Methods(http.MethodPut).Path(path).Handler(transport.AddAnswerHandler(eps.CreateAnswer, options))
-	}
-	{
-		//Edit answer of a question
-		path := fmt.Sprintf("/questions/{%s}/answers/{%s}", transport.QuestionID, transport.AnswerID)
-		rtr.Methods(http.MethodPatch).Path(path).Handler(transport.UpdateAnswerHandler(eps.UpdateAnswer, options))
-	}
-}
-
-func readConfiguration(logger kitlog.Logger) dbConfig {
+func readConfiguration(logger kitlog.Logger) entities.Config {
 	// load .env file
 	err := godotenv.Load(".env")
 
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
-	return dbConfig{
+	dbConfig := entities.DbConfig{
 		Host:     os.Getenv("DB_HOST"),
 		Port:     os.Getenv("DB_PORT"),
 		User:     os.Getenv("DB_USERNAME"),
 		Password: os.Getenv("DB_PASSWORD"),
 		Database: os.Getenv("DB_NAME"),
+	}
+
+	return entities.Config{
+		Host: os.Getenv("APP_HOST"),
+		Port: os.Getenv("APP_PORT"),
+		DB:   dbConfig,
 	}
 }
